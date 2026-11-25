@@ -1,0 +1,6 @@
+{
+  "name": "RIDEHUB – Campus Carpool Network",
+  "description": "Share Your Ride, Split Your Fare. A campus carpooling platform helping students coordinate shared rides to railway stations, airports, bus hubs, and city destinations.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

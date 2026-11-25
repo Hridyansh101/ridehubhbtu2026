@@ -1,0 +1,497 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // =========================================================================
+    // Phase 3: Hardened Global Primitives
+    // =========================================================================
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedEmail() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidString(val, minLen, maxLen) {
+      return val is string && val.size() >= minLen && val.size() <= maxLen;
+    }
+
+    function isValidDateString(val) {
+      return val is string
+        && val.size() == 10
+        && val.matches('^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$');
+    }
+
+    function isValidTimeString(val) {
+      return val is string
+        && val.size() == 5
+        && val.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$');
+    }
+
+    function isValidCategory(val) {
+      return val is string && val in ['railway', 'airport', 'bus', 'city', 'other'];
+    }
+
+    function isValidCurrency(val) {
+      return val is string && val in ['USD', 'INR', 'EUR', 'GBP'];
+    }
+
+    function isValidContactMethod(val) {
+      return val is string && val in ['Campus Email', 'WhatsApp', 'SMS / Phone', 'Telegram'];
+    }
+
+    function isValidRideStatus(val) {
+      return val is string && val in ['active', 'full', 'completed', 'cancelled'];
+    }
+
+    function isValidRequestStatus(val) {
+      return val is string && val in ['pending', 'accepted', 'declined', 'cancelled'];
+    }
+
+    function isValidReportReason(val) {
+      return val is string && val in [
+        'inaccurate_details',
+        'unsafe_pickup',
+        'suspicious_pricing',
+        'harassment_or_spam',
+        'other'
+      ];
+    }
+
+    // =========================================================================
+    // Phase 2: Validation Blueprints (Anti-Update-Gap)
+    // =========================================================================
+
+    function isValidRide(data) {
+      return data.keys().hasAll([
+          'driverId',
+          'driverName',
+          'origin',
+          'destination',
+          'destinationCategory',
+          'travelDate',
+          'departureTime',
+          'totalSeats',
+          'availableSeats',
+          'estimatedTotalFare',
+          'currency',
+          'notes',
+          'contactChannelLabel',
+          'status',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'driverId',
+          'driverName',
+          'origin',
+          'destination',
+          'destinationCategory',
+          'travelDate',
+          'departureTime',
+          'totalSeats',
+          'availableSeats',
+          'estimatedTotalFare',
+          'currency',
+          'notes',
+          'contactChannelLabel',
+          'status',
+          'createdAt',
+          'updatedAt'
+        ])
+        && isValidId(data.driverId)
+        && isValidString(data.driverName, 1, 60)
+        && isValidString(data.origin, 2, 120)
+        && isValidString(data.destination, 2, 120)
+        && isValidCategory(data.destinationCategory)
+        && isValidDateString(data.travelDate)
+        && isValidTimeString(data.departureTime)
+        && data.totalSeats is int && data.totalSeats >= 1 && data.totalSeats <= 8
+        && data.availableSeats is int && data.availableSeats >= 0 && data.availableSeats <= data.totalSeats
+        && data.estimatedTotalFare is number && data.estimatedTotalFare >= 0 && data.estimatedTotalFare <= 100000
+        && isValidCurrency(data.currency)
+        && isValidString(data.notes, 0, 400)
+        && isValidContactMethod(data.contactChannelLabel)
+        && isValidRideStatus(data.status)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidRideContact(data, rideId) {
+      return data.keys().hasAll([
+          'rideId',
+          'driverId',
+          'contactMethod',
+          'contactValue',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'rideId',
+          'driverId',
+          'contactMethod',
+          'contactValue',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.rideId == rideId
+        && isValidId(data.driverId)
+        && isValidContactMethod(data.contactMethod)
+        && isValidString(data.contactValue, 3, 120)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidJoinRequest(data) {
+      return data.keys().hasAll([
+          'rideId',
+          'driverId',
+          'passengerId',
+          'passengerName',
+          'seatsRequested',
+          'note',
+          'status',
+          'rideSnapshotOrigin',
+          'rideSnapshotDestination',
+          'rideSnapshotDate',
+          'rideSnapshotTime',
+          'rideSnapshotFare',
+          'rideSnapshotCurrency',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'rideId',
+          'driverId',
+          'passengerId',
+          'passengerName',
+          'seatsRequested',
+          'note',
+          'status',
+          'rideSnapshotOrigin',
+          'rideSnapshotDestination',
+          'rideSnapshotDate',
+          'rideSnapshotTime',
+          'rideSnapshotFare',
+          'rideSnapshotCurrency',
+          'createdAt',
+          'updatedAt'
+        ])
+        && isValidId(data.rideId)
+        && isValidId(data.driverId)
+        && isValidId(data.passengerId)
+        && data.passengerId != data.driverId
+        && isValidString(data.passengerName, 1, 60)
+        && data.seatsRequested is int && data.seatsRequested >= 1 && data.seatsRequested <= 4
+        && isValidString(data.note, 0, 250)
+        && isValidRequestStatus(data.status)
+        && isValidString(data.rideSnapshotOrigin, 2, 120)
+        && isValidString(data.rideSnapshotDestination, 2, 120)
+        && isValidDateString(data.rideSnapshotDate)
+        && isValidTimeString(data.rideSnapshotTime)
+        && data.rideSnapshotFare is number && data.rideSnapshotFare >= 0 && data.rideSnapshotFare <= 100000
+        && isValidCurrency(data.rideSnapshotCurrency)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function matchesParentRideSnapshot(reqData, rideData) {
+      return reqData.driverId == rideData.driverId
+        && reqData.rideSnapshotOrigin == rideData.origin
+        && reqData.rideSnapshotDestination == rideData.destination
+        && reqData.rideSnapshotDate == rideData.travelDate
+        && reqData.rideSnapshotTime == rideData.departureTime
+        && reqData.rideSnapshotFare == rideData.estimatedTotalFare
+        && reqData.rideSnapshotCurrency == rideData.currency;
+    }
+
+    function isValidRideReport(data) {
+      return data.keys().hasAll([
+          'rideId',
+          'reporterId',
+          'reason',
+          'details',
+          'status',
+          'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'rideId',
+          'reporterId',
+          'reason',
+          'details',
+          'status',
+          'createdAt'
+        ])
+        && isValidId(data.rideId)
+        && isValidId(data.reporterId)
+        && isValidReportReason(data.reason)
+        && isValidString(data.details, 5, 500)
+        && data.status == 'open'
+        && data.createdAt is timestamp;
+    }
+
+    // =========================================================================
+    // Collection 1: /rides/{rideId} (Public Landmarks Only — Zero PII)
+    // =========================================================================
+
+    match /rides/{rideId} {
+      // Single-doc get: public if active/full; otherwise only driver or a passenger who requested it
+      allow get: if isValidId(rideId) && (
+        existing().status in ['active', 'full']
+        || (isSignedIn() && existing().driverId == request.auth.uid)
+        || (isSignedIn() && exists(/databases/$(database)/documents/joinRequests/$(rideId + '__' + request.auth.uid)))
+      );
+
+      // Secure list query (Pillar 8): explicitly filters resource.data, zero get() lookups
+      allow list: if existing().status in ['active', 'full']
+        || (isSignedIn() && existing().driverId == request.auth.uid);
+
+      // Create: verified user, valid schema, owner matches uid, initial status active, atomic contact doc
+      allow create: if isVerifiedEmail()
+        && isValidId(rideId)
+        && isValidRide(incoming())
+        && incoming().driverId == request.auth.uid
+        && incoming().status == 'active'
+        && incoming().availableSeats == incoming().totalSeats
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && existsAfter(/databases/$(database)/documents/rides/$(rideId)/private/contact);
+
+      // Update: validation helper first, terminal state locked, strict action-based allowlists
+      allow update: if isVerifiedEmail()
+        && isValidId(rideId)
+        && isValidRide(incoming())
+        && existing().status in ['active', 'full']
+        && incoming().driverId == existing().driverId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action 1: Driver seat update (accepting/revoking a passenger request)
+          (
+            existing().driverId == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly(['availableSeats', 'status', 'updatedAt'])
+            && incoming().status in ['active', 'full']
+            && ((incoming().availableSeats == 0 && incoming().status == 'full')
+                || (incoming().availableSeats > 0 && incoming().status == 'active'))
+          )
+          // Action 2: Driver edits trip details while active or full
+          || (
+            existing().driverId == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'origin',
+              'destination',
+              'destinationCategory',
+              'travelDate',
+              'departureTime',
+              'totalSeats',
+              'availableSeats',
+              'estimatedTotalFare',
+              'currency',
+              'notes',
+              'contactChannelLabel',
+              'status',
+              'updatedAt'
+            ])
+            && incoming().status in ['active', 'full']
+            && ((incoming().availableSeats == 0 && incoming().status == 'full')
+                || (incoming().availableSeats > 0 && incoming().status == 'active'))
+          )
+          // Action 3: Driver marks ride as completed or cancelled (terminal transition)
+          || (
+            existing().driverId == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+            && incoming().status in ['completed', 'cancelled']
+          )
+          // Action 4: Tier 2 — Accepted passenger releases seat atomically upon withdrawing request
+          || (
+            existing().driverId != request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly(['availableSeats', 'status', 'updatedAt'])
+            && exists(/databases/$(database)/documents/joinRequests/$(rideId + '__' + request.auth.uid))
+            && get(/databases/$(database)/documents/joinRequests/$(rideId + '__' + request.auth.uid)).data.status == 'accepted'
+            && getAfter(/databases/$(database)/documents/joinRequests/$(rideId + '__' + request.auth.uid)).data.status == 'cancelled'
+            && incoming().availableSeats == existing().availableSeats + get(/databases/$(database)/documents/joinRequests/$(rideId + '__' + request.auth.uid)).data.seatsRequested
+            && incoming().status == 'active'
+          )
+        );
+
+      allow delete: if false;
+
+      // =======================================================================
+      // Subcollection 1b: /rides/{rideId}/private/{docId} (Pillar 1 Master Gate + Pillar 6 PII Isolation)
+      // =======================================================================
+      match /private/{docId} {
+        allow get: if isVerifiedEmail()
+          && isValidId(rideId)
+          && docId == 'contact'
+          && exists(/databases/$(database)/documents/rides/$(rideId))
+          && get(/databases/$(database)/documents/rides/$(rideId)).data.driverId == existing().driverId
+          && (
+            existing().driverId == request.auth.uid
+            || (
+              get(/databases/$(database)/documents/rides/$(rideId)).data.status in ['active', 'full']
+              && exists(/databases/$(database)/documents/joinRequests/$(rideId + '__' + request.auth.uid))
+              && get(/databases/$(database)/documents/joinRequests/$(rideId + '__' + request.auth.uid)).data.status == 'accepted'
+            )
+          );
+
+        allow list: if false;
+
+        allow create: if isVerifiedEmail()
+          && isValidId(rideId)
+          && docId == 'contact'
+          && isValidRideContact(incoming(), rideId)
+          && incoming().driverId == request.auth.uid
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && existsAfter(/databases/$(database)/documents/rides/$(rideId))
+          && getAfter(/databases/$(database)/documents/rides/$(rideId)).data.driverId == request.auth.uid;
+
+        allow update: if isVerifiedEmail()
+          && isValidId(rideId)
+          && docId == 'contact'
+          && isValidRideContact(incoming(), rideId)
+          && existing().driverId == request.auth.uid
+          && incoming().driverId == existing().driverId
+          && incoming().rideId == existing().rideId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['contactMethod', 'contactValue', 'updatedAt'])
+          && exists(/databases/$(database)/documents/rides/$(rideId))
+          && get(/databases/$(database)/documents/rides/$(rideId)).data.driverId == request.auth.uid
+          && get(/databases/$(database)/documents/rides/$(rideId)).data.status in ['active', 'full'];
+
+        allow delete: if false;
+      }
+    }
+
+    // =========================================================================
+    // Collection 2: /joinRequests/{requestId} (Deterministic {rideId}__{uid})
+    // =========================================================================
+
+    match /joinRequests/{requestId} {
+      allow get: if isSignedIn()
+        && isValidId(requestId)
+        && (existing().passengerId == request.auth.uid || existing().driverId == request.auth.uid);
+
+      allow list: if isSignedIn()
+        && (existing().passengerId == request.auth.uid || existing().driverId == request.auth.uid);
+
+      allow create: if isVerifiedEmail()
+        && isValidId(requestId)
+        && isValidJoinRequest(incoming())
+        && incoming().passengerId == request.auth.uid
+        && requestId == incoming().rideId + '__' + request.auth.uid
+        && incoming().status == 'pending'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/rides/$(incoming().rideId))
+        && matchesParentRideSnapshot(
+          incoming(),
+          get(/databases/$(database)/documents/rides/$(incoming().rideId)).data
+        )
+        && get(/databases/$(database)/documents/rides/$(incoming().rideId)).data.status == 'active'
+        && get(/databases/$(database)/documents/rides/$(incoming().rideId)).data.availableSeats >= incoming().seatsRequested;
+
+      allow update: if isVerifiedEmail()
+        && isValidId(requestId)
+        && isValidJoinRequest(incoming())
+        && existing().status in ['pending', 'accepted']
+        && incoming().rideId == existing().rideId
+        && incoming().driverId == existing().driverId
+        && incoming().passengerId == existing().passengerId
+        && incoming().seatsRequested == existing().seatsRequested
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+        && (
+          // Action 1: Driver accepts pending request atomically with seat decrement
+          (
+            existing().driverId == request.auth.uid
+            && existing().status == 'pending'
+            && incoming().status == 'accepted'
+            && get(/databases/$(database)/documents/rides/$(existing().rideId)).data.status == 'active'
+            && get(/databases/$(database)/documents/rides/$(existing().rideId)).data.availableSeats >= existing().seatsRequested
+            && getAfter(/databases/$(database)/documents/rides/$(existing().rideId)).data.availableSeats == get(/databases/$(database)/documents/rides/$(existing().rideId)).data.availableSeats - existing().seatsRequested
+          )
+          // Action 2: Driver declines pending request
+          || (
+            existing().driverId == request.auth.uid
+            && existing().status == 'pending'
+            && incoming().status == 'declined'
+          )
+          // Action 3: Passenger cancels their own pending request
+          || (
+            existing().passengerId == request.auth.uid
+            && existing().status == 'pending'
+            && incoming().status == 'cancelled'
+          )
+          // Action 4: Passenger withdraws an accepted request (atomically restores seats if ride active/full)
+          || (
+            existing().passengerId == request.auth.uid
+            && existing().status == 'accepted'
+            && incoming().status == 'cancelled'
+            && (
+              get(/databases/$(database)/documents/rides/$(existing().rideId)).data.status in ['cancelled', 'completed']
+              || getAfter(/databases/$(database)/documents/rides/$(existing().rideId)).data.availableSeats == get(/databases/$(database)/documents/rides/$(existing().rideId)).data.availableSeats + existing().seatsRequested
+            )
+          )
+          // Action 5: Driver revokes accepted request (atomically restores seats or cancels ride)
+          || (
+            existing().driverId == request.auth.uid
+            && existing().status == 'accepted'
+            && incoming().status == 'cancelled'
+            && (
+              getAfter(/databases/$(database)/documents/rides/$(existing().rideId)).data.status == 'cancelled'
+              || getAfter(/databases/$(database)/documents/rides/$(existing().rideId)).data.availableSeats == get(/databases/$(database)/documents/rides/$(existing().rideId)).data.availableSeats + existing().seatsRequested
+            )
+          )
+        );
+
+      allow delete: if false;
+    }
+
+    // =========================================================================
+    // Collection 3: /rideReports/{reportId} (Immutable Safety Reports)
+    // =========================================================================
+
+    match /rideReports/{reportId} {
+      allow get: if isSignedIn()
+        && isValidId(reportId)
+        && existing().reporterId == request.auth.uid;
+
+      allow list: if isSignedIn()
+        && existing().reporterId == request.auth.uid;
+
+      allow create: if isVerifiedEmail()
+        && isValidId(reportId)
+        && isValidRideReport(incoming())
+        && incoming().reporterId == request.auth.uid
+        && reportId == incoming().rideId + '__' + request.auth.uid
+        && incoming().createdAt == request.time
+        && exists(/databases/$(database)/documents/rides/$(incoming().rideId))
+        && get(/databases/$(database)/documents/rides/$(incoming().rideId)).data.driverId != request.auth.uid;
+
+      allow update: if false;
+      allow delete: if false;
+    }
+  }
+}

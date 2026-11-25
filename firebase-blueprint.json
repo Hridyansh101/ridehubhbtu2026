@@ -1,0 +1,328 @@
+{
+  "entities": {
+    "Ride": {
+      "title": "Ride",
+      "description": "A public campus carpool trip listing using public landmarks only (no PII or exact home addresses).",
+      "type": "object",
+      "properties": {
+        "driverId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Firebase Auth UID of the student offering the ride."
+        },
+        "driverName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60,
+          "description": "Public display name of the driver (no email or phone)."
+        },
+        "origin": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 120,
+          "description": "Public campus pickup point or recognizable landmark."
+        },
+        "destination": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 120,
+          "description": "Public destination landmark (railway station, airport, bus hub, or city area)."
+        },
+        "destinationCategory": {
+          "type": "string",
+          "enum": ["railway", "airport", "bus", "city", "other"],
+          "description": "Broad category for popular destination filtering."
+        },
+        "travelDate": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$",
+          "description": "Departure date in YYYY-MM-DD format."
+        },
+        "departureTime": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 5,
+          "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+          "description": "Departure time in 24-hour HH:MM format."
+        },
+        "totalSeats": {
+          "type": "integer",
+          "description": "Total passenger seats offered (1 to 8)."
+        },
+        "availableSeats": {
+          "type": "integer",
+          "description": "Remaining available seats (0 to totalSeats)."
+        },
+        "estimatedTotalFare": {
+          "type": "number",
+          "description": "Estimated total trip fare (non-negative, up to 100000)."
+        },
+        "currency": {
+          "type": "string",
+          "enum": ["USD", "INR", "EUR", "GBP"],
+          "description": "Currency code for the estimated fare."
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 400,
+          "description": "Optional travel notes such as luggage space or pickup instructions."
+        },
+        "contactChannelLabel": {
+          "type": "string",
+          "enum": ["Campus Email", "WhatsApp", "SMS / Phone", "Telegram"],
+          "description": "Non-PII label describing how the driver prefers to coordinate once a request is accepted."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "full", "completed", "cancelled"],
+          "description": "Lifecycle status of the trip."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the ride was posted."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of the latest update."
+        }
+      },
+      "required": [
+        "driverId",
+        "driverName",
+        "origin",
+        "destination",
+        "destinationCategory",
+        "travelDate",
+        "departureTime",
+        "totalSeats",
+        "availableSeats",
+        "estimatedTotalFare",
+        "currency",
+        "notes",
+        "contactChannelLabel",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "RideContact": {
+      "title": "RideContact",
+      "description": "Private contact details isolated from public ride listings; readable only by the driver and accepted passengers.",
+      "type": "object",
+      "properties": {
+        "rideId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "ID of the parent ride document."
+        },
+        "driverId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Firebase Auth UID of the ride driver."
+        },
+        "contactMethod": {
+          "type": "string",
+          "enum": ["Campus Email", "WhatsApp", "SMS / Phone", "Telegram"],
+          "description": "Preferred coordination channel."
+        },
+        "contactValue": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 120,
+          "description": "Private handle, phone number, or campus email shared only with accepted riders."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "rideId",
+        "driverId",
+        "contactMethod",
+        "contactValue",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "JoinRequest": {
+      "title": "JoinRequest",
+      "description": "A student's request to join a posted ride, keyed deterministically as {rideId}__{passengerId} to prevent duplicates.",
+      "type": "object",
+      "properties": {
+        "rideId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "driverId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "passengerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "passengerName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "seatsRequested": {
+          "type": "integer",
+          "description": "Seats requested by the passenger (1 to 4)."
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 250,
+          "description": "Optional pickup or luggage note from the passenger."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "accepted", "declined", "cancelled"]
+        },
+        "rideSnapshotOrigin": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 120
+        },
+        "rideSnapshotDestination": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 120
+        },
+        "rideSnapshotDate": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
+        },
+        "rideSnapshotTime": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 5,
+          "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+        },
+        "rideSnapshotFare": {
+          "type": "number"
+        },
+        "rideSnapshotCurrency": {
+          "type": "string",
+          "enum": ["USD", "INR", "EUR", "GBP"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "rideId",
+        "driverId",
+        "passengerId",
+        "passengerName",
+        "seatsRequested",
+        "note",
+        "status",
+        "rideSnapshotOrigin",
+        "rideSnapshotDestination",
+        "rideSnapshotDate",
+        "rideSnapshotTime",
+        "rideSnapshotFare",
+        "rideSnapshotCurrency",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "RideReport": {
+      "title": "RideReport",
+      "description": "Safety report submitted by a signed-in user for a ride listing, keyed as {rideId}__{reporterId}.",
+      "type": "object",
+      "properties": {
+        "rideId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "reporterId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "inaccurate_details",
+            "unsafe_pickup",
+            "suspicious_pricing",
+            "harassment_or_spam",
+            "other"
+          ]
+        },
+        "details": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 500
+        },
+        "status": {
+          "type": "string",
+          "enum": ["open"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "rideId",
+        "reporterId",
+        "reason",
+        "details",
+        "status",
+        "createdAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/rides/{rideId}": {
+      "schema": { "$ref": "#/entities/Ride" },
+      "description": "Public campus carpool trips (landmark pickup/drop-off only, zero personal contact details)."
+    },
+    "/rides/{rideId}/private/contact": {
+      "schema": { "$ref": "#/entities/RideContact" },
+      "description": "Isolated private driver contact details readable only by the driver and accepted passengers."
+    },
+    "/joinRequests/{requestId}": {
+      "schema": { "$ref": "#/entities/JoinRequest" },
+      "description": "Seat join requests keyed deterministically as {rideId}__{passengerId}."
+    },
+    "/rideReports/{reportId}": {
+      "schema": { "$ref": "#/entities/RideReport" },
+      "description": "Immutable user-submitted ride safety reports keyed as {rideId}__{reporterId}."
+    }
+  }
+}
