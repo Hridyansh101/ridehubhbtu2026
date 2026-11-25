@@ -34,7 +34,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setSigningIn(true);
     try {
       const result = await signInWithPopup(auth, googleProvider);
+      setUser(result.user);
       return result.user;
+    } catch (error) {
+      console.error('RIDEHUB Google Sign-In failed:', error);
+      throw error;
     } finally {
       setSigningIn(false);
     }

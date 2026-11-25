@@ -55,6 +55,9 @@ export function handleFirestoreError(
 export function getFriendlyErrorMessage(error: unknown, fallback = 'Something went wrong. Please try again.'): string {
   if (!(error instanceof Error)) return fallback;
 
+  const rawCode = (error as Error & { code?: unknown }).code;
+  const errorCode = typeof rawCode === 'string' ? rawCode : '';
+
   let rawMessage = error.message;
   try {
     const parsed = JSON.parse(error.message) as Partial<FirestoreErrorInfo>;
@@ -65,18 +68,38 @@ export function getFriendlyErrorMessage(error: unknown, fallback = 'Something we
     // Plain error message
   }
 
-  const lower = rawMessage.toLowerCase();
-  if (lower.includes('quota exceeded')) {
+  const combined = `${errorCode} ${rawMessage}`.toLowerCase();
+
+  if (combined.includes('auth/unauthorized-domain')) {
+    const host = typeof window !== 'undefined' ? window.location.hostname : 'this domain';
+    return `Google sign-in is not yet authorized for "${host}". Add "${host}" in Firebase Console → Authentication → Settings → Authorized domains.`;
+  }
+  if (combined.includes('auth/popup-blocked')) {
+    return 'Your browser blocked the Google sign-in popup. Please allow popups for this site and try again.';
+  }
+  if (combined.includes('auth/popup-closed-by-user')) {
+    return 'Sign-in was cancelled before completing.';
+  }
+  if (combined.includes('auth/cancelled-popup-request')) {
+    return 'A Google sign-in window is already open. Please finish signing in there or try again.';
+  }
+  if (combined.includes('auth/operation-not-allowed')) {
+    return 'Google sign-in is disabled for this Firebase project. Enable Google under Firebase Console → Authentication → Sign-in method.';
+  }
+  if (combined.includes('auth/invalid-api-key') || combined.includes('auth/app-not-authorized')) {
+    return 'Firebase configuration error for this deployment. Check your VITE_FIREBASE_* environment variables.';
+  }
+  if (combined.includes('auth/network-request-failed')) {
+    return 'Network error during sign-in. Check your internet connection or disable strict popup blockers and try again.';
+  }
+  if (combined.includes('quota exceeded')) {
     return 'Daily database quota exceeded. Please try again later.';
   }
-  if (lower.includes('permission-denied') || lower.includes('missing or insufficient permissions')) {
+  if (combined.includes('permission-denied') || combined.includes('missing or insufficient permissions')) {
     return 'Permission denied. Please sign in with a verified Google account and verify your request details.';
   }
-  if (lower.includes('offline') || lower.includes('network')) {
+  if (combined.includes('offline') || combined.includes('network')) {
     return 'Unable to reach the server. Please check your internet connection.';
-  }
-  if (lower.includes('popup-closed-by-user')) {
-    return 'Sign-in was cancelled before completing.';
   }
   if (rawMessage.startsWith('RIDEHUB:')) {
     return rawMessage.replace(/^RIDEHUB:\s*/, '');

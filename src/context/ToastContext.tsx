@@ -29,7 +29,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       setToasts((prev) => [...prev.slice(-3), { id, type, title, description }]);
       window.setTimeout(() => {
         dismiss(id);
-      }, 4800);
+      }, type === 'error' ? 8500 : 4800);
     },
     [dismiss]
   );
